@@ -1,5 +1,6 @@
 var config = require("./config.js")
 var utils = require("./utils.js")
+var mapLookup = require("./map-lookup.js")
 
 function supportLanguages() {
   return config.supportedLanguages.map((pair) => pair[0])
@@ -44,7 +45,7 @@ function translate(query, completion) {
         error: {
           type: "network",
           message: resp.error.localizedDescription || "network error",
-          addtion: JSON.stringify(resp.error),
+          addition: resp.error,
         },
       })
       return
@@ -55,11 +56,14 @@ function translate(query, completion) {
     var paragraphs
     if (!data || data.ok === false) {
       msg = data?.error?.message || "upstream error"
+      var errType = "api"
+      if (data?.error?.code === "UNAUTHORIZED") errType = "secretKey"
+      if (data?.error?.code === "BAD_REQUEST") errType = "param"
       completion({
         error: {
-          type: "api",
+          type: errType,
           message: msg,
-          addtion: JSON.stringify(data),
+          addition: data,
         },
       })
       return
@@ -74,7 +78,7 @@ function translate(query, completion) {
           error: {
             type: "api",
             message: "empty translation result",
-            addtion: JSON.stringify(data),
+            addition: data,
           },
         })
         return
@@ -82,15 +86,17 @@ function translate(query, completion) {
     }
 
     if (data.mode === "lookup" && data.lookup) {
-      completion({
-        result: {
-          from: query.detectFrom,
-          to: query.detectTo,
-          fromParagraphs: text.split("\n"),
-          toParagraphs: paragraphs,
-          toDict: mapLookupToBob(data.lookup),
-        },
-      })
+      var mapped = mapLookup.mapLookupToBob(data.lookup)
+      var result = {
+        from: query.detectFrom,
+        to: query.detectTo,
+        fromParagraphs: text.split("\n"),
+        toParagraphs: paragraphs,
+        toDict: mapped.toDict,
+      }
+      if (mapped.fromTTS) result.fromTTS = mapped.fromTTS
+      if (mapped.toTTS) result.toTTS = mapped.toTTS
+      completion({ result: result })
       return
     }
 
@@ -110,54 +116,6 @@ function translate(query, completion) {
       },
     })
   })
-}
-
-function mapLookupToBob(lookup) {
-  var toDict = {
-    word: lookup.query || "",
-    phonetics: [],
-    parts: [],
-    exchanges: [],
-    additions: [],
-  }
-
-  ;(lookup.phonetics || []).forEach((p) => {
-    toDict.phonetics.push({
-      type: p.accent,
-      value: p.text || "",
-      tts: p.audioUrl ? { type: "url", value: p.audioUrl } : undefined,
-    })
-  })
-
-  ;(lookup.explanations || []).forEach((e) => {
-    toDict.parts.push({
-      part: e.partOfSpeech || "",
-      means: e.meanings || [],
-    })
-  })
-
-  ;(lookup.forms || []).forEach((f) => {
-    toDict.exchanges.push({
-      name: f.name,
-      words: f.values || [],
-    })
-  })
-
-  if (lookup.tags?.length) {
-    toDict.additions.push({
-      name: "标签",
-      value: lookup.tags.join("/"),
-    })
-  }
-
-  ;(lookup.suggestions || []).forEach((s) => {
-    toDict.exchanges.push({
-      name: s.translation ? `您要找的是不是: ${s.translation}` : "您要找的是不是",
-      words: [s.text],
-    })
-  })
-
-  return toDict
 }
 
 exports.supportLanguages = supportLanguages
