@@ -100,23 +100,21 @@ export function buildLookupParagraphs(lookup: LookupResult): string[] {
   const paragraphs: string[] = []
 
   if (lookup.direction === "zh2en" && lookup.relatedWords.length > 0) {
-    // Bob official Chinese example: first related word only as primary translation
+    // Bob official Chinese example: first related word only as primary translation.
+    // Full candidates live in toDict.relatedWordParts — do not dump them here.
     const firstRelated = lookup.relatedWords[0]
     if (firstRelated?.word) paragraphs.push(firstRelated.word)
-    const firstExpl = lookup.explanations[0]
-    if (firstExpl) {
-      const pos = firstExpl.partOfSpeech ? `${firstExpl.partOfSpeech} ` : ""
-      paragraphs.push(`${pos}${firstExpl.meanings.join("；")}`.trim())
+  } else if (lookup.found && lookup.explanations.length > 0) {
+    // Bob shows toDict.parts with POS styling; toParagraphs is only a short
+    // primary translation (official "good" example uses ["好"], not full parts).
+    // Avoid re-printing "n. …" which duplicates the dictionary section.
+    const first = lookup.explanations[0]
+    const means = first?.meanings?.filter(Boolean) ?? []
+    if (means.length) {
+      paragraphs.push(means.join("；"))
     }
-  } else if (lookup.found) {
-    for (const e of lookup.explanations) {
-      const pos = e.partOfSpeech ? `${e.partOfSpeech} ` : ""
-      paragraphs.push(`${pos}${e.meanings.join("；")}`.trim())
-    }
-    const firstRelated = lookup.relatedWords[0]
-    if (paragraphs.length === 0 && firstRelated?.word) {
-      paragraphs.push(firstRelated.word)
-    }
+  } else if (lookup.found && lookup.relatedWords[0]?.word) {
+    paragraphs.push(lookup.relatedWords[0].word)
   } else if (lookup.suggestions.length) {
     paragraphs.push(
       `未找到“${lookup.query}”。您要找的是不是：${lookup.suggestions.map((s) => s.text).join("、")}`,

@@ -53,4 +53,12 @@ describe("Bob mapLookupToBob", () => {
     expect(paragraphs[0]).toBe(lookup.relatedWords[0]?.word)
     expect(paragraphs[0]).not.toContain(",")
   })
+
+  test("en2zh paragraphs are short means without POS prefix", () => {
+    const lookup = parseDictPayload("apple", load("apple.json"))
+    const paragraphs = buildLookupParagraphs(lookup)
+    expect(paragraphs.length).toBe(1)
+    expect(paragraphs[0]).not.toMatch(/^(n\.|v\.|adj\.)\s/)
+    expect(paragraphs[0]).toContain("苹果")
+  })
 })
