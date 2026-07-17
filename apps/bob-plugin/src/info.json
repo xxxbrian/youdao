@@ -7,7 +7,7 @@
   "icon": "icon.png",
   "author": "xxxbrian",
   "homepage": "https://github.com/xxxbrian/youdao",
-  "minBobVersion": "0.6.0",
+  "minBobVersion": "1.6.0",
   "options": [
     {
       "identifier": "serverUrl",

@@ -61,4 +61,16 @@ describe("Bob mapLookupToBob", () => {
     expect(paragraphs[0]).not.toMatch(/^(n\.|v\.|adj\.)\s/)
     expect(paragraphs[0]).toContain("苹果")
   })
+
+  test("Bob plugin omits toParagraphs when toDict is rich", () => {
+    const { hasRichToDict } = require("../../bob-plugin/src/main.js") as {
+      hasRichToDict: (d: unknown) => boolean
+    }
+    const en = mapLookupToBob(parseDictPayload("apple", load("apple.json")))
+    const zh = mapLookupToBob(parseDictPayload("决定性", load("决定性.json")))
+    expect(hasRichToDict(en.toDict)).toBe(true)
+    expect(hasRichToDict(zh.toDict)).toBe(true)
+    expect(hasRichToDict({})).toBe(false)
+    expect(hasRichToDict({ additions: [{ name: "x", value: "y" }] })).toBe(false)
+  })
 })

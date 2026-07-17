@@ -54,9 +54,12 @@ function translate(query, completion) {
     var data = resp.data
     var msg = "upstream error"
     var paragraphs
+    var errType
+    var mapped
+    var result
     if (!data || data.ok === false) {
       msg = data?.error?.message || "upstream error"
-      var errType = "api"
+      errType = "api"
       if (data?.error?.code === "UNAUTHORIZED") errType = "secretKey"
       if (data?.error?.code === "BAD_REQUEST") errType = "param"
       completion({
@@ -73,7 +76,7 @@ function translate(query, completion) {
     if (!paragraphs?.length) {
       if (data.translation) {
         paragraphs = [data.translation]
-      } else {
+      } else if (!(data.mode === "lookup" && data.lookup)) {
         completion({
           error: {
             type: "api",
@@ -85,17 +88,35 @@ function translate(query, completion) {
       }
     }
 
+    // Dictionary hit: Bob renders toDict (parts / relatedWordParts).
+    // Do NOT also pass toParagraphs — that creates the duplicate bottom block.
+    // Bob 1.6.0+ allows toDict without toParagraphs.
     if (data.mode === "lookup" && data.lookup) {
-      var mapped = mapLookup.mapLookupToBob(data.lookup)
-      var result = {
+      mapped = mapLookup.mapLookupToBob(data.lookup)
+      result = {
         from: query.detectFrom,
         to: query.detectTo,
         fromParagraphs: text.split("\n"),
-        toParagraphs: paragraphs,
         toDict: mapped.toDict,
       }
       if (mapped.fromTTS) result.fromTTS = mapped.fromTTS
       if (mapped.toTTS) result.toTTS = mapped.toTTS
+
+      // Miss / weak dict: no parts or relatedWordParts → need toParagraphs
+      if (!hasRichToDict(mapped.toDict)) {
+        if (!paragraphs?.length) {
+          completion({
+            error: {
+              type: "api",
+              message: "empty dictionary result",
+              addition: data,
+            },
+          })
+          return
+        }
+        result.toParagraphs = paragraphs
+      }
+
       completion({ result: result })
       return
     }
@@ -118,5 +139,14 @@ function translate(query, completion) {
   })
 }
 
+/** True when toDict alone is enough for Bob to render a dictionary card. */
+function hasRichToDict(toDict) {
+  if (!toDict) return false
+  if (toDict.parts?.length) return true
+  if (toDict.relatedWordParts?.length) return true
+  return false
+}
+
 exports.supportLanguages = supportLanguages
 exports.translate = translate
+exports.hasRichToDict = hasRichToDict
