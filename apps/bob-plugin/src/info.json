@@ -1,0 +1,29 @@
+{
+  "identifier": "com.xxxbrian.youdao",
+  "version": "0.1.0",
+  "category": "translate",
+  "name": "Youdao",
+  "summary": "通过自建 Youdao 逆向 API 服务进行翻译与词典查询",
+  "icon": "icon.png",
+  "author": "xxxbrian",
+  "homepage": "https://github.com/xxxbrian/youdao",
+  "minBobVersion": "0.5.0",
+  "options": [
+    {
+      "identifier": "serverUrl",
+      "type": "text",
+      "title": "服务地址",
+      "defaultValue": "http://127.0.0.1:8787",
+      "desc": "自建 youdao 服务根地址，不要带 /v1 路径"
+    },
+    {
+      "identifier": "apiKey",
+      "type": "text",
+      "title": "API Key",
+      "desc": "若服务端配置了 API_KEY，则填写相同值",
+      "textConfig": {
+        "type": "secure"
+      }
+    }
+  ]
+}
