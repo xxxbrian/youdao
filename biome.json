@@ -6,7 +6,14 @@
     "useIgnoreFile": true
   },
   "files": {
-    "includes": ["apps/**", "!**/node_modules", "!**/.wrangler", "!**/dist", "!**/*.bobplugin"]
+    "includes": [
+      "apps/**",
+      "!**/node_modules",
+      "!**/.wrangler",
+      "!**/dist",
+      "!**/*.bobplugin",
+      "!**/tests/fixtures"
+    ]
   },
   "formatter": {
     "enabled": true,
@@ -29,9 +36,24 @@
   "linter": {
     "enabled": true,
     "rules": {
-      "preset": "recommended"
+      "preset": "recommended",
+      "correctness": {
+        "noInnerDeclarations": "off"
+      }
     }
   },
+  "overrides": [
+    {
+      "includes": ["apps/bob-plugin/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "useConst": "off"
+          }
+        }
+      }
+    }
+  ],
   "assist": {
     "enabled": true,
     "actions": {

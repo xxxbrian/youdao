@@ -67,22 +67,22 @@ describe.skipIf(!runLive)("live: word lookup + pronunciation", () => {
     expect(status).toBe(200)
     const lookup = json.lookup as {
       found: boolean
-      explanations: Array<{ meanings: string[] }>
-      paragraphs?: string[]
+      direction: string
+      relatedWords: Array<{ word: string }>
+      phonetics: Array<{ accent: string; text: string }>
     }
     expect(lookup.found).toBe(true)
-    expect(
-      lookup.explanations.some((e) => e.meanings.some((m) => /apple/i.test(m))) ||
-        String(json.translation ?? "")
-          .toLowerCase()
-          .includes("apple"),
-    ).toBe(true)
+    expect(lookup.direction).toBe("zh2en")
+    expect(lookup.relatedWords.some((w) => /apple/i.test(w.word))).toBe(true)
+    expect(lookup.phonetics.some((p) => p.accent === "pinyin")).toBe(true)
+    expect(String(json.translation ?? "").toLowerCase()).toContain("apple")
   }, 20_000)
 
   test("query auto routes single word to lookup mode", async () => {
     const { status, json } = await post("/v1/query", {
       text: "hello",
       mode: "auto",
+      to: "zh-CHS",
     })
     expect(status).toBe(200)
     expect(json.mode).toBe("lookup")
@@ -91,6 +91,17 @@ describe.skipIf(!runLive)("live: word lookup + pronunciation", () => {
     expect(paragraphs.length).toBeGreaterThan(0)
     expect(paragraphs.join("")).toMatch(/你好|喂|招呼/)
   }, 20_000)
+
+  test("query auto EN→FR falls back to translate", async () => {
+    const { status, json } = await post("/v1/query", {
+      text: "apple",
+      mode: "auto",
+      from: "en",
+      to: "fr",
+    })
+    expect(status).toBe(200)
+    expect(json.mode).toBe("translate")
+  }, 30_000)
 })
 
 describe.skipIf(!runLive)("live: sentence translation", () => {
