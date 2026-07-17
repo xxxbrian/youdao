@@ -13,8 +13,10 @@ export type TranslateResult = {
   paragraphs: string[]
 }
 
+export type PhoneticAccent = "us" | "uk" | "pinyin"
+
 export type Phonetic = {
-  accent: "us" | "uk" | string
+  accent: PhoneticAccent
   text: string
   audioUrl: string
 }
@@ -39,13 +41,35 @@ export type Suggestion = {
   translation?: string
 }
 
+export type RelatedWord = {
+  word: string
+  means: string[]
+  audioUrl?: string
+}
+
+export type DictExample = {
+  source: string
+  target: string
+}
+
+export type DictExtra = {
+  name: string
+  value: string
+}
+
+export type LookupDirection = "en2zh" | "zh2en" | "unknown"
+
 export type LookupResult = {
   query: string
   found: boolean
+  direction: LookupDirection
   phonetics: Phonetic[]
   explanations: Explanation[]
   forms: WordForm[]
   tags: string[]
   webTranslations: WebTranslation[]
   suggestions: Suggestion[]
+  relatedWords: RelatedWord[]
+  examples: DictExample[]
+  extras: DictExtra[]
 }

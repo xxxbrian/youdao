@@ -25,3 +25,54 @@ export function toYoudaoLang(input?: string): string {
   }
   return map[input] ?? input
 }
+
+export function isChineseLang(code?: string): boolean {
+  if (!code || code === "auto") return false
+  const c = code.toLowerCase()
+  return (
+    c === "zh" ||
+    c === "zh-chs" ||
+    c === "zh-cht" ||
+    c === "zh-hans" ||
+    c === "zh-hant" ||
+    c === "zh-cn" ||
+    c === "zh-tw" ||
+    c.startsWith("zh-")
+  )
+}
+
+export function isEnglishLang(code?: string): boolean {
+  if (!code || code === "auto") return false
+  const c = code.toLowerCase()
+  return c === "en" || c === "eng" || c.startsWith("en-")
+}
+
+/**
+ * Whether a dictionary hit should be used for auto mode given requested languages.
+ * Explicit /lookup or mode=lookup bypasses this (caller decides).
+ */
+export function dictDirectionMatchesPair(
+  direction: "en2zh" | "zh2en" | "unknown",
+  from?: string,
+  to?: string,
+): boolean {
+  if (direction === "unknown") return false
+
+  const fromY = toYoudaoLang(from)
+  const toY = toYoudaoLang(to)
+  const fromAuto = !from || fromY === "auto"
+  const toAuto = !to || toY === "auto"
+
+  if (direction === "en2zh") {
+    // Need Chinese target (or auto); reject if target is clearly non-Chinese
+    if (!toAuto && !isChineseLang(toY)) return false
+    // If source is explicit and not English/auto, reject
+    if (!fromAuto && !isEnglishLang(fromY)) return false
+    return true
+  }
+
+  // zh2en
+  if (!toAuto && !isEnglishLang(toY)) return false
+  if (!fromAuto && !isChineseLang(fromY)) return false
+  return true
+}

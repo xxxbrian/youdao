@@ -2,6 +2,7 @@ import { Hono } from "hono"
 import type { AppEnv } from "../env"
 import { readJsonObject } from "../lib/body"
 import { AppError } from "../lib/errors"
+import { dictDirectionMatchesPair } from "../lib/languages"
 import { isLookupCandidate } from "../lib/query-mode"
 import { lookupWord } from "../youdao/dict"
 import { translateText } from "../youdao/translate"
@@ -58,19 +59,17 @@ v1.post("/query", async (c) => {
   }
 
   if (modeRaw === "lookup") {
+    // Explicit lookup: return dict regardless of language pair
     const lookup = await lookupWord({ q: text, cookie })
     return c.json(lookupResponse(lookup))
   }
 
-  // auto
+  // auto: only use dict when candidate + found + direction matches requested pair
   if (isLookupCandidate(text)) {
     const lookup = await lookupWord({ q: text, cookie })
-    if (lookup.found) {
+    if (lookup.found && dictDirectionMatchesPair(lookup.direction, from, to)) {
       return c.json(lookupResponse(lookup))
     }
-    // genuine miss → fall back to translate
-    const result = await translateText({ text, from, to, cookie })
-    return c.json(translateResponse(result))
   }
 
   const result = await translateText({ text, from, to, cookie })
@@ -85,7 +84,7 @@ function translateResponse(result: TranslateResult) {
   }
 }
 
-function lookupResponse(lookup: LookupResult) {
+export function lookupResponse(lookup: LookupResult) {
   const paragraphs = buildLookupParagraphs(lookup)
   return {
     ok: true as const,
@@ -97,32 +96,36 @@ function lookupResponse(lookup: LookupResult) {
   }
 }
 
-function buildLookupParagraphs(lookup: LookupResult): string[] {
+export function buildLookupParagraphs(lookup: LookupResult): string[] {
   const paragraphs: string[] = []
-  if (lookup.found) {
+
+  if (lookup.direction === "zh2en" && lookup.relatedWords.length > 0) {
+    // Bob official Chinese example: first related word only as primary translation
+    const firstRelated = lookup.relatedWords[0]
+    if (firstRelated?.word) paragraphs.push(firstRelated.word)
+    const firstExpl = lookup.explanations[0]
+    if (firstExpl) {
+      const pos = firstExpl.partOfSpeech ? `${firstExpl.partOfSpeech} ` : ""
+      paragraphs.push(`${pos}${firstExpl.meanings.join("；")}`.trim())
+    }
+  } else if (lookup.found) {
     for (const e of lookup.explanations) {
       const pos = e.partOfSpeech ? `${e.partOfSpeech} ` : ""
       paragraphs.push(`${pos}${e.meanings.join("；")}`.trim())
     }
-    if (paragraphs.length === 0) {
-      for (const w of lookup.webTranslations) {
-        paragraphs.push(`${w.phrase}: ${w.meanings.join("；")}`)
-      }
+    const firstRelated = lookup.relatedWords[0]
+    if (paragraphs.length === 0 && firstRelated?.word) {
+      paragraphs.push(firstRelated.word)
     }
   } else if (lookup.suggestions.length) {
     paragraphs.push(
-      `未找到“${lookup.query}”。您要找的是不是：${lookup.suggestions
-        .map((s) => s.text)
-        .join("、")}`,
+      `未找到“${lookup.query}”。您要找的是不是：${lookup.suggestions.map((s) => s.text).join("、")}`,
     )
   } else {
     paragraphs.push(`未找到“${lookup.query}”相关释义`)
   }
 
-  // Invariant: never return empty paragraphs for a successful lookup response
-  if (paragraphs.length === 0) {
-    paragraphs.push(lookup.query)
-  }
+  if (paragraphs.length === 0) paragraphs.push(lookup.query)
   return paragraphs
 }
 
