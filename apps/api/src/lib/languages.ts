@@ -41,6 +41,19 @@ export function isChineseLang(code?: string): boolean {
   )
 }
 
+/** Simplified Chinese targets that match Youdao EC definition script. */
+export function isSimplifiedChineseLang(code?: string): boolean {
+  if (!code || code === "auto") return false
+  const c = toYoudaoLang(code).toLowerCase()
+  return c === "zh" || c === "zh-chs" || c === "zh-hans" || c === "zh-cn"
+}
+
+export function isTraditionalChineseLang(code?: string): boolean {
+  if (!code || code === "auto") return false
+  const c = toYoudaoLang(code).toLowerCase()
+  return c === "zh-cht" || c === "zh-hant" || c === "zh-tw"
+}
+
 export function isEnglishLang(code?: string): boolean {
   if (!code || code === "auto") return false
   const c = code.toLowerCase()
@@ -50,6 +63,9 @@ export function isEnglishLang(code?: string): boolean {
 /**
  * Whether a dictionary hit should be used for auto mode given requested languages.
  * Explicit /lookup or mode=lookup bypasses this (caller decides).
+ *
+ * Note: Youdao `ec` definitions are Simplified Chinese. EN→Traditional targets
+ * intentionally fall through to the translation endpoint.
  */
 export function dictDirectionMatchesPair(
   direction: "en2zh" | "zh2en" | "unknown",
@@ -64,14 +80,14 @@ export function dictDirectionMatchesPair(
   const toAuto = !to || toY === "auto"
 
   if (direction === "en2zh") {
-    // Need Chinese target (or auto); reject if target is clearly non-Chinese
-    if (!toAuto && !isChineseLang(toY)) return false
-    // If source is explicit and not English/auto, reject
+    // Youdao EC definitions are Simplified Chinese only.
     if (!fromAuto && !isEnglishLang(fromY)) return false
-    return true
+    if (toAuto) return true
+    if (isTraditionalChineseLang(toY)) return false
+    return isSimplifiedChineseLang(toY)
   }
 
-  // zh2en
+  // zh2en — any Chinese source is fine
   if (!toAuto && !isEnglishLang(toY)) return false
   if (!fromAuto && !isChineseLang(fromY)) return false
   return true

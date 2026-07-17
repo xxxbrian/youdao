@@ -40,32 +40,54 @@ export async function lookupWord(options: { q: string; cookie?: string }): Promi
 
 /** Parse a raw Youdao jsonapi_s payload (exported for fixture tests). */
 export function parseDictPayload(query: string, raw: unknown): LookupResult {
-  const data = asRecord(raw)
-  const empty = emptyLookup(query)
-  if (!data) return empty
+  // Non-object payloads are protocol failures (not clean misses).
+  if (raw === null || typeof raw !== "object" || Array.isArray(raw)) {
+    throw new AppError("UPSTREAM_PROTOCOL_ERROR", "Youdao dict returned non-object payload")
+  }
 
+  const data = raw as Record<string, unknown>
   assertNotUpstreamErrorEnvelope(data)
 
-  const phonetics: Phonetic[] = []
-  const explanations: Explanation[] = []
+  const ecPhonetics: Phonetic[] = []
+  const ecExplanations: Explanation[] = []
   const forms: WordForm[] = []
   const tags: string[] = []
   const webTranslations: WebTranslation[] = []
   const suggestions: Suggestion[] = []
   const relatedWords: RelatedWord[] = []
+  const newhhExplanations: Explanation[] = []
   const examples: DictExample[] = []
   const extras: DictExtra[] = []
 
-  const hasEc = parseEc(data, query, { phonetics, explanations, forms, tags })
-  const hasCe = parseCe(data, query, { relatedWords })
-  const hasNewhh = parseNewhh(data, { explanations })
+  parseEc(data, query, {
+    phonetics: ecPhonetics,
+    explanations: ecExplanations,
+    forms,
+    tags,
+  })
+  parseCe(data, query, { relatedWords })
+  parseNewhh(data, { explanations: newhhExplanations })
   parseWebTrans(data, query, webTranslations)
   parseBlng(data, examples)
   parseBaike(data, extras)
   parseTypos(data, suggestions)
 
-  // Pinyin only for Chinese-oriented results (not EN us/uk)
-  if (!hasEc && (hasCe || hasNewhh)) {
+  // Direction from section-specific lexical content only.
+  let direction: LookupDirection = "unknown"
+  if (ecExplanations.length > 0) {
+    direction = "en2zh"
+  } else if (relatedWords.length > 0 || newhhExplanations.length > 0) {
+    direction = "zh2en"
+  }
+
+  const phonetics: Phonetic[] = []
+  let explanations: Explanation[] = []
+
+  if (direction === "en2zh") {
+    phonetics.push(...ecPhonetics)
+    explanations = ecExplanations
+  } else if (direction === "zh2en") {
+    explanations = newhhExplanations
     const pinyin = extractPinyin(data)
     if (pinyin) {
       phonetics.push({
@@ -74,13 +96,6 @@ export function parseDictPayload(query: string, raw: unknown): LookupResult {
         audioUrl: voiceUrl(query, 2),
       })
     }
-  }
-
-  let direction: LookupDirection = "unknown"
-  if (hasEc && explanations.length > 0) {
-    direction = "en2zh"
-  } else if (relatedWords.length > 0 || (hasNewhh && explanations.length > 0)) {
-    direction = "zh2en"
   }
 
   const found =
@@ -93,11 +108,11 @@ export function parseDictPayload(query: string, raw: unknown): LookupResult {
     direction,
     phonetics,
     explanations,
-    forms,
-    tags,
+    forms: direction === "en2zh" ? forms : [],
+    tags: direction === "en2zh" ? tags : [],
     webTranslations,
     suggestions,
-    relatedWords,
+    relatedWords: direction === "zh2en" ? relatedWords : [],
     examples,
     extras,
   }
@@ -143,23 +158,6 @@ async function lookupOnce(q: string, cookie: string): Promise<LookupResult> {
     throw new AppError("UPSTREAM_ERROR", err instanceof Error ? err.message : "Youdao dict failed")
   } finally {
     clearTimeout(timer)
-  }
-}
-
-function emptyLookup(query: string): LookupResult {
-  return {
-    query,
-    found: false,
-    direction: "unknown",
-    phonetics: [],
-    explanations: [],
-    forms: [],
-    tags: [],
-    webTranslations: [],
-    suggestions: [],
-    relatedWords: [],
-    examples: [],
-    extras: [],
   }
 }
 

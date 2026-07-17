@@ -83,4 +83,44 @@ describe("parseDictPayload fixtures", () => {
     expect(r.found).toBe(false)
     expect(r.direction).toBe("unknown")
   })
+
+  test("non-object payloads are protocol errors", () => {
+    expect(() => parseDictPayload("x", null)).toThrow()
+    expect(() => parseDictPayload("x", [])).toThrow()
+    expect(() => parseDictPayload("x", "nope")).toThrow()
+    expect(() => parseDictPayload("x", 42)).toThrow()
+  })
+
+  test("mixed ec phonetics + newhh defs prefers zh2en when no ec explanations", () => {
+    const mixed = {
+      meta: { guessLanguage: "zh" },
+      ec: {
+        word: {
+          usphone: "foo",
+          usspeech: "foo&type=2",
+          // no trs → no ec explanations
+        },
+      },
+      newhh: {
+        dataList: [
+          {
+            cat: "名词",
+            sense: [{ def: ["中文释义"], cat: "名词" }],
+          },
+        ],
+      },
+      ce: {
+        word: {
+          phone: "cè shì",
+          trs: [{ "#text": "test", "#tran": "测试；" }],
+        },
+      },
+    }
+    const r = parseDictPayload("测试", mixed)
+    expect(r.direction).toBe("zh2en")
+    expect(r.found).toBe(true)
+    expect(r.relatedWords[0]?.word).toBe("test")
+    expect(r.phonetics.every((p) => p.accent === "pinyin")).toBe(true)
+    expect(r.explanations.some((e) => e.meanings.includes("中文释义"))).toBe(true)
+  })
 })
