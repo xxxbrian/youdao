@@ -1,0 +1,6 @@
+name = "youdao"
+main = "src/worker.ts"
+compatibility_date = "2026-07-16"
+
+# Optional: bunx wrangler secret put API_KEY
+# When unset, /v1 is open. When set, Bearer / X-API-Key is required.
