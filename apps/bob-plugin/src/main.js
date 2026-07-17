@@ -1,47 +1,54 @@
-var config = require("./config.js")
-var utils = require("./utils.js")
-var mapLookup = require("./map-lookup.js")
+const config = require("./config.js")
+const utils = require("./utils.js")
+const mapLookup = require("./map-lookup.js")
 
 function supportLanguages() {
   return config.supportedLanguages.map((pair) => pair[0])
 }
 
-function translate(query, completion) {
+/** Bob 1.6+：自定义超时（秒），词典/跨境请求给宽一点。 */
+function pluginTimeoutInterval() {
+  return 90
+}
+
+/**
+ * Bob 1.8+ 现代回调：只用 query.onCompletion。
+ * 词典命中只返回 toDict（不传 toParagraphs），避免底部译文区重复。
+ */
+function translate(query) {
+  const finish = query.onCompletion
+
   ;(async () => {
-    var base = ($option.serverUrl || "http://127.0.0.1:8787").replace(/\/$/, "")
-    var apiKey = $option.apiKey || ""
-    var text = query.text || ""
+    const base = ($option.serverUrl || "http://127.0.0.1:8787").replace(/\/$/, "")
+    const apiKey = $option.apiKey || ""
+    const text = query.text || ""
     if (!text) {
-      completion({
-        error: { type: "param", message: "empty text" },
-      })
+      finish({ error: { type: "param", message: "empty text" } })
       return
     }
 
-    var from = utils.langMap.get(query.detectFrom) || "auto"
-    var to = utils.langMap.get(query.detectTo) || "auto"
+    const from = utils.langMap.get(query.detectFrom) || "auto"
+    const to = utils.langMap.get(query.detectTo) || "auto"
 
-    var headers = {
-      "Content-Type": "application/json",
-    }
-    if (apiKey) {
-      headers.Authorization = `Bearer ${apiKey}`
-    }
+    const headers = { "Content-Type": "application/json" }
+    if (apiKey) headers.Authorization = `Bearer ${apiKey}`
 
-    var resp = await $http.request({
+    const resp = await $http.request({
       method: "POST",
       url: `${base}/v1/query`,
       header: headers,
       body: {
-        text: text,
-        from: from,
-        to: to,
+        text,
+        from,
+        to,
         mode: "auto",
       },
+      // Bob 1.8+：用户取消查询时中断请求
+      cancelSignal: query.cancelSignal,
     })
 
     if (resp.error) {
-      completion({
+      finish({
         error: {
           type: "network",
           message: resp.error.localizedDescription || "network error",
@@ -51,49 +58,30 @@ function translate(query, completion) {
       return
     }
 
-    var data = resp.data
-    var msg = "upstream error"
-    var paragraphs
-    var errType
-    var mapped
-    var result
+    const data = resp.data
     if (!data || data.ok === false) {
-      msg = data?.error?.message || "upstream error"
-      errType = "api"
+      let errType = "api"
       if (data?.error?.code === "UNAUTHORIZED") errType = "secretKey"
       if (data?.error?.code === "BAD_REQUEST") errType = "param"
-      completion({
+      finish({
         error: {
           type: errType,
-          message: msg,
+          message: data?.error?.message || "upstream error",
           addition: data,
         },
       })
       return
     }
 
-    paragraphs = data.paragraphs
-    if (!paragraphs?.length) {
-      if (data.translation) {
-        paragraphs = [data.translation]
-      } else if (!(data.mode === "lookup" && data.lookup)) {
-        completion({
-          error: {
-            type: "api",
-            message: "empty translation result",
-            addition: data,
-          },
-        })
-        return
-      }
+    let paragraphs = data.paragraphs
+    if (!paragraphs?.length && data.translation) {
+      paragraphs = [data.translation]
     }
 
-    // Dictionary hit: Bob renders toDict (parts / relatedWordParts).
-    // Do NOT also pass toParagraphs — that creates the duplicate bottom block.
-    // Bob 1.6.0+ allows toDict without toParagraphs.
+    // —— 词典 ——
     if (data.mode === "lookup" && data.lookup) {
-      mapped = mapLookup.mapLookupToBob(data.lookup)
-      result = {
+      const mapped = mapLookup.mapLookupToBob(data.lookup)
+      const result = {
         from: query.detectFrom,
         to: query.detectTo,
         fromParagraphs: text.split("\n"),
@@ -102,10 +90,10 @@ function translate(query, completion) {
       if (mapped.fromTTS) result.fromTTS = mapped.fromTTS
       if (mapped.toTTS) result.toTTS = mapped.toTTS
 
-      // Miss / weak dict: no parts or relatedWordParts → need toParagraphs
+      // 弱结果（未命中等）才用 toParagraphs 兜底
       if (!hasRichToDict(mapped.toDict)) {
         if (!paragraphs?.length) {
-          completion({
+          finish({
             error: {
               type: "api",
               message: "empty dictionary result",
@@ -117,11 +105,23 @@ function translate(query, completion) {
         result.toParagraphs = paragraphs
       }
 
-      completion({ result: result })
+      finish({ result })
       return
     }
 
-    completion({
+    // —— 句子翻译 ——
+    if (!paragraphs?.length) {
+      finish({
+        error: {
+          type: "api",
+          message: "empty translation result",
+          addition: data,
+        },
+      })
+      return
+    }
+
+    finish({
       result: {
         from: query.detectFrom,
         to: query.detectTo,
@@ -130,7 +130,7 @@ function translate(query, completion) {
       },
     })
   })().catch((err) => {
-    completion({
+    finish({
       error: {
         type: err._type || "unknown",
         message: err._message || String(err),
@@ -139,7 +139,7 @@ function translate(query, completion) {
   })
 }
 
-/** True when toDict alone is enough for Bob to render a dictionary card. */
+/** toDict 足够丰富时，Bob 只渲染词典区，无需 toParagraphs。 */
 function hasRichToDict(toDict) {
   if (!toDict) return false
   if (toDict.parts?.length) return true
@@ -148,5 +148,6 @@ function hasRichToDict(toDict) {
 }
 
 exports.supportLanguages = supportLanguages
+exports.pluginTimeoutInterval = pluginTimeoutInterval
 exports.translate = translate
 exports.hasRichToDict = hasRichToDict
