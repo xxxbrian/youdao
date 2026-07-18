@@ -121,12 +121,16 @@ function translate(query) {
       return
     }
 
+    // Bob 会在 toParagraphs 每个元素之间自动插入空行。
+    // 多段译文若按段拆成数组，会变成「段间双倍空行」。
+    // 合并为单个元素，只保留我们自己的 \n，避免多余空白。
+    // 见：https://bobtranslate.com/plugin/object/translateresult.html
     finish({
       result: {
         from: query.detectFrom,
         to: query.detectTo,
-        fromParagraphs: text.split("\n"),
-        toParagraphs: paragraphs,
+        fromParagraphs: [text],
+        toParagraphs: [paragraphs.join("\n")],
       },
     })
   })().catch((err) => {
