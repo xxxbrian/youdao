@@ -172,8 +172,11 @@ function parseTranslatePayload(
         srcCellCount++
       }
     }
-    if (tgt) paragraphs.push(tgt)
     if (src) srcParts.push(src)
+    // Youdao often returns blank-line rows as "\n" and content rows ending with "\n".
+    // Keep only non-empty text segments; strip trailing newlines so join is predictable.
+    const cleaned = normalizeParagraph(tgt)
+    if (cleaned) paragraphs.push(cleaned)
   }
 
   if (paragraphs.length === 0) {
@@ -202,13 +205,21 @@ function parseTranslatePayload(
     if (t) detectedTo = t
   }
 
+  // One blank line between paragraphs (matches typical letter/email spacing).
+  const translation = paragraphs.join("\n\n")
+
   return {
     from: detectedFrom,
     to: detectedTo,
     text: originalText,
-    translation: paragraphs.join("\n"),
+    translation,
     paragraphs,
   }
+}
+
+/** Drop blank-line-only segments; strip trailing newlines Youdao embeds in tgt. */
+function normalizeParagraph(tgt: string): string {
+  return tgt.replace(/\r\n/g, "\n").replace(/\n+$/g, "").trimEnd()
 }
 
 function sourcesMatch(input: string, upstream: string): boolean {
