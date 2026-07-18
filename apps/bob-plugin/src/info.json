@@ -4,7 +4,7 @@
   "category": "translate",
   "name": "Youdao",
   "summary": "通过自建 Youdao 逆向 API 服务进行翻译与词典查询",
-  "icon": "icon.png",
+  "icon": "105",
   "author": "xxxbrian",
   "homepage": "https://github.com/xxxbrian/youdao",
   "minBobVersion": "1.8.0",
