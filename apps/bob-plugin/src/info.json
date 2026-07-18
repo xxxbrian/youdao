@@ -3,7 +3,7 @@
   "version": "0.2.0",
   "category": "translate",
   "name": "Youdao",
-  "summary": "通过自建 Youdao 逆向 API 服务进行翻译与词典查询",
+  "summary": "通过 Youdao 逆向 API 服务进行翻译与词典查询",
   "icon": "105",
   "author": "xxxbrian",
   "homepage": "https://github.com/xxxbrian/youdao",
@@ -13,11 +13,11 @@
       "identifier": "serverUrl",
       "type": "text",
       "title": "服务地址",
-      "defaultValue": "http://127.0.0.1:8787",
-      "desc": "自建 youdao 服务根地址，不要带 /v1 路径",
+      "defaultValue": "https://youdao.bojin.co",
+      "desc": "youdao 服务根地址，不要带 /v1 路径",
       "textConfig": {
         "type": "visible",
-        "placeholderText": "https://youdao.example.com"
+        "placeholderText": "https://youdao.bojin.co"
       }
     },
     {
