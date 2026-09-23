@@ -4,6 +4,7 @@ import { aes128CbcDecrypt } from "./crypto"
 import { youdaoHeaders } from "./headers"
 import { buildSignedParams, getKeyBundle, invalidateKeyCache } from "./key-cache"
 import { resolveCookie, rotateCookie } from "./session"
+import { describeSourceMismatch, sourcesMatch } from "./source-match"
 import type { TranslateResult, YoudaoKeyBundle } from "./types"
 
 const TRANSLATE_URL = "https://dict.youdao.com/webtranslate"
@@ -188,11 +189,15 @@ function parseTranslatePayload(
     throw new AppError("UPSTREAM_PROTOCOL_ERROR", "Youdao translate missing src fields")
   }
 
+  // Youdao re-segments text, so segment-boundary spacing can differ; only
+  // character-level differences (stale key / anti-bot cache hit) are fatal.
   const reconstructed = srcParts.join("")
   if (!sourcesMatch(originalText, reconstructed)) {
+    const d = describeSourceMismatch(originalText, reconstructed)
     throw new AppError(
       "UPSTREAM_PROTOCOL_ERROR",
-      "Youdao translate source mismatch (possible invalid signature)",
+      `Youdao translate source mismatch${d.truncated ? " (truncated)" : ""} ` +
+        `at char ${d.index} (input ${d.inputLength}, upstream ${d.upstreamLength})`,
     )
   }
 
@@ -220,14 +225,4 @@ function parseTranslatePayload(
 /** Drop blank-line-only segments; strip trailing newlines Youdao embeds in tgt. */
 function normalizeParagraph(tgt: string): string {
   return tgt.replace(/\r\n/g, "\n").replace(/\n+$/g, "").trimEnd()
-}
-
-function sourcesMatch(input: string, upstream: string): boolean {
-  const a = normalizeSrc(input)
-  const b = normalizeSrc(upstream)
-  return a === b
-}
-
-function normalizeSrc(s: string): string {
-  return s.replace(/\r\n/g, "\n").replace(/\s+/g, " ").trim()
 }
