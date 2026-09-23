@@ -1,17 +1,27 @@
 /**
  * Source-coverage check for Youdao /webtranslate responses.
  *
- * Youdao re-segments the request text and rebuilds `translateResult[].src`
- * from its own sentence split, so whitespace at segment boundaries does not
- * survive the round trip. Example (real log):
+ * Measured against the live endpoint: Youdao echoes `src` verbatim in every
+ * respect EXCEPT whitespace. It does NOT convert traditional<->simplified
+ * (`這是一個測試。` on zh-CHT->zh-CHS comes back traditional) and does NOT
+ * normalize punctuation, entities or full-width forms (`"`, `“”`, `...`,
+ * `–—`, `<b>`, `&amp;` all round-trip unchanged).
  *
- *   input:    "…customizable.The services enabled…"
- *   upstream: "…customizable. The services enabled…"
+ * What it does change is spacing, unevenly, at its own segment boundaries:
  *
- * Such differences are formatting only. A stale signing key / anti-bot cache
- * hit instead returns a payload whose *characters* differ (unrelated text,
- * reordered sentences, dropped tail), so we compare a whitespace-insensitive
- * form: identical characters in identical order is required.
+ *   input:    "One!Two?Three"        -> upstream "One! Two? Three"
+ *   input:    "Wait... what"        -> upstream "Wait...  what"
+ *   input:    "…customizable.The"   -> upstream "…customizable. The"
+ *   input:    "  leading space"     -> upstream "leading space"
+ *
+ * (Note `One.Two.Three` is left alone while `One!Two?Three` is spaced, so the
+ * rule is not predictable enough to reimplement.) Such differences are
+ * formatting only. A stale signing key / anti-bot cache hit instead returns a
+ * payload whose *characters* differ (unrelated text, reordered sentences,
+ * dropped tail), so we compare a whitespace-insensitive form: identical
+ * characters in identical order is required. 繁简 and punctuation differences
+ * are deliberately NOT tolerated, because they never occur by nature and thus
+ * only appear when the payload is not the caller's text.
  */
 
 /** Zero-width / BOM characters that `\s` does not cover. */

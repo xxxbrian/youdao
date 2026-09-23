@@ -53,6 +53,35 @@ describe("sourcesMatch", () => {
     expect(sourcesMatch("The cat sat.", "The dog sat.")).toBe(false)
   })
 
+  test("punctuation differences are NOT tolerated", () => {
+    // Verified live: Youdao echoes punctuation verbatim, so a punctuation
+    // change means the payload is not the caller's text.
+    expect(sourcesMatch("Wait... what", "Wait… what")).toBe(false)
+    expect(sourcesMatch('He said "hi"', "He said “hi”")).toBe(false)
+    expect(sourcesMatch("A-B test", "A–B test")).toBe(false)
+  })
+
+  test("traditional/simplified differences are NOT tolerated", () => {
+    // Verified live: zh-CHT->zh-CHS does not convert src, so a script change
+    // is a strong invalid-payload signal.
+    expect(sourcesMatch("這是一個測試。", "这是一个测试。")).toBe(false)
+    expect(sourcesMatch("軟體與資料庫", "软件与数据库")).toBe(false)
+  })
+
+  test("measured Youdao segment-boundary spacing cases match", () => {
+    // All confirmed from the live endpoint (see source-match.ts header).
+    expect(sourcesMatch("One!Two?Three", "One! Two? Three")).toBe(true)
+    expect(sourcesMatch("Wait... what happened?", "Wait...  what happened?")).toBe(true)
+    expect(sourcesMatch("  leading space", "leading space")).toBe(true)
+    expect(sourcesMatch("trailing space ", "trailing space")).toBe(true)
+    // and the cases Youdao leaves untouched must still match exactly
+    expect(sourcesMatch("One.Two.Three", "One.Two.Three")).toBe(true)
+    expect(sourcesMatch("Hello , world .", "Hello , world .")).toBe(true)
+    expect(sourcesMatch("Cost is 1,234.56 USD (approx).", "Cost is 1,234.56 USD (approx).")).toBe(
+      true,
+    )
+  })
+
   test("truncated upstream fails", () => {
     expect(sourcesMatch("one two three", "one two")).toBe(false)
   })
